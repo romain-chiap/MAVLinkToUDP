@@ -2,6 +2,8 @@
 MAVLink to UDP bridge to display PX4 Simulation-In-Hardware (SIH) into FlightGear.
 Written in Java using [jMAVlib](https://github.com/PX4/jMAVlib) for the [MAVLink](https://mavlink.io/en/) interface.
 
+![Simulator in Hardware diagram](https://github.com/romain-chiap/PX4_SIH_QuadX/blob/master/Documentation/img/SIH_diagram.png)
+
 Supports the following vehicles:
 - Quadrotor X (using SIH QuadX)
 - Vogi, the [vogi](http://www.vogi-vtol.com/) is a pitch decoupled VTOL aircraft.
@@ -37,3 +39,11 @@ For the UDP message definition, see [net_fdm.hxx](https://github.com/romain-chia
 		Specifies the vehicle setup, it can be either quad or vogi.
 		If not specified, the default vehicle is a quad.
 ```
+
+## About us
+Coriolis g Corporation is a Canadian company specialized in Vertical Takeoff and Landing (VTOL) Unmanned Aerial Vehicles (UAV). 
+
+The company is focusing on developing a new type of VTOL aircraft using a passive coupling system.
+We are specialized in dynamics and control and real time simulation. The SIH is a simple simulator for quadrotors released for free and without any conditions.
+
+Discover our current platform at [www.vogi-vtol.com](http://www.vogi-vtol.com/)
