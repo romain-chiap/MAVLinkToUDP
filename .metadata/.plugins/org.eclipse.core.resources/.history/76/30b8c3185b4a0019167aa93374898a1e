@@ -1,0 +1,5 @@
+package coriolis;
+
+public class ClientUDP {
+
+}

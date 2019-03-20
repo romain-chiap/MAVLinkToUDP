@@ -1,0 +1,144 @@
+package coriolis;
+
+import me.drton.jmavlib.mavlink.MAVLinkMessage;
+import me.drton.jmavlib.conversion.RotationConversion;
+import java.lang.Math;
+import java.util.Arrays;
+
+public class FGVehicle {
+
+	private static final int FG_NET_FDM_VERSION=24; 	// int is always 4 bytes in Java
+	private static final int PADDING=0; 				// zero padding to fill up the array
+
+	private double latitude=0.79355;				// geodetic latitude (radians)
+	private double longitude=-1.2741;				// geodetic longitude (radians)
+	private double altitude=32.34;					// above sea level (meters)
+    private float roll=0.0f;
+    private float pitch=0.0f;
+    private float yaw=0.0f;
+	private float elevator=0.0f;
+    private float left_aileron=0.0f;
+    private float right_aileron=0.0f;
+    private float rudder=0.0f;
+
+        
+    public FGVehicle readAttAndPos(MAVLinkMessage msg)
+    {
+    	
+        // List<Double> states = Arrays.asList(msg.getDouble("roll_ailerons"),
+        //                                      msg.getDouble("pitch_elevator"),
+        //                                      msg.getDouble("yaw_rudder"), msg.getDouble("throttle"), msg.getDouble("aux1"),
+        //                                      msg.getDouble("aux2"), msg.getDouble("aux3"), msg.getDouble("aux4"));
+       
+        // List<Double> control = new ArrayList<Double>();
+        double [] quat={0.0f,0.0f,0.0f,0.0f};
+        for (int i = 0; i < 4; ++i) {
+            quat[i] = ((Number)((Object[])msg.get("attitude_quaternion"))[i]).doubleValue();
+            // System.out.println("["+quat[0]+","+quat[1]+","+quat[2]+","+quat[3]+"]");
+        }        
+        latitude=Math.toRadians(msg.getDouble("lat")*1e-7);
+        longitude=Math.toRadians(msg.getDouble("lon")*1e-7);
+        altitude=msg.getDouble("alt")*1e-3;
+        
+        double[] euler = RotationConversion.eulerAnglesByQuaternion(quat); 
+        roll=(float)euler[0];
+        pitch=(float)euler[1];
+        yaw=(float)euler[2];
+        
+        return this;     
+    }
+
+    public FGVehicle readQuad(MAVLinkMessage msg)
+    { 	// the attitude and position are sufficient for a quad
+    	return readAttAndPos(msg);
+    }
+
+    public FGVehicle readVogi(MAVLinkMessage msg)
+    { 	// the vogi is a VTOL aircraft with a quad attached to a airframe, 
+    	// able to rotate freely about the pitch angle. visit www.vogi-vtol.com
+    	// the relative angle is read by "pitchspeed", and is sent through the FG "rudder"
+    	readAttAndPos(msg);
+    	rudder = msg.getFloat("pitchspeed");
+    	System.out.println(pitchspeed);   
+    	return this;
+    }
+    
+    @Override
+    public String toString()	
+    {
+    	return "latitude="+Math.toDegrees(latitude)+
+    			", longitude="+Math.toDegrees(longitude)+
+    			", alt="+altitude+
+    			", roll="+Math.toDegrees(roll)+
+    			", pitch="+Math.toDegrees(pitch)+
+    			", yaw="+Math.toDegrees(yaw);
+    }
+
+    // ===============================================================================================
+    // FlightGear packing for UDP
+    public void packFG(byte [] buffer)
+    {
+    	// ================================================================
+    	// Please check net_fdm.hxx in the sources of FlightGear 
+    	// for the order of the variables and their sizes
+    	// (available in the lib folder)
+    	// the buffer should be 408 bytes in length
+    	// http://wiki.flightgear.org/Property_Tree/Sockets#Using_Proprietary.2FExternal_FDMs 
+    	// ================================================================
+    	int index=0; 			// buffer index
+
+    	Arrays.fill(buffer,(byte)0); 	// initialize the buffer to 0
+    	index = packInt(buffer, index, FG_NET_FDM_VERSION); 	// 4 first bytes for version
+		index = packInt(buffer, index, PADDING); 				// 4 bytes for padding
+		index = packDouble(buffer, index, longitude); 			// 8 bytes for geodetic longitude (radians)
+		index = packDouble(buffer, index, latitude); 			// 8 bytes for geodetic latitude (radians)
+		index = packDouble(buffer, index, altitude); 			// 8 bytes for above sea level (meters)
+		index = packFloat(buffer, index, 0.0f); 				// 4 bytes for above ground level (meters)
+		index = packFloat(buffer, index, roll); 					// 4 bytes for roll (radians)
+		index = packFloat(buffer, index, pitch); 				// 4 bytes for pitch (radians)
+		index = packFloat(buffer, index, yaw); 					// 4 bytes for yaw or true heading (radians)
+		index = 368; 		// jumps to the control surfaces
+		index = packFloat(buffer, index, elevator); 	
+		index = index + 12;	// jumps to left aileron
+		index = packFloat(buffer, index, left_aileron); 
+		index = packFloat(buffer, index, right_aileron);
+		index = packFloat(buffer, index, rudder); 		
+
+    }
+
+    private static int packInt(byte [] buffer, int index, int value)
+    {
+    	int value_raw=value;
+
+    	for (int i=3; i>=0; i=i-1) {
+    		buffer[index+i]=(byte)(value_raw&0xFF);
+    		value_raw=value_raw>>8;
+    	}
+
+    	return index+4;	// points to the index for the next value
+    }
+
+    private static int packFloat(byte [] buffer, int index, float value)
+    {
+    	int value_raw=Float.floatToIntBits(value);
+
+    	for (int i=3; i>=0; i=i-1) {
+    		buffer[index+i]=(byte)(value_raw&0xFF);
+    		value_raw=value_raw>>8;
+    	}
+
+    	return index+4;	// points to the index for the next value
+    }
+
+    private static int packDouble(byte [] buffer, int index, double value)
+    {
+    	long value_raw=Double.doubleToLongBits(value);
+
+    	for (int i=7; i>=0; i=i-1) {
+    		buffer[index+i]=(byte)(value_raw&0xFF);
+    		value_raw=value_raw>>8;
+    	}
+
+    	return index+8;	// points to the index for the next value
+    }
+}

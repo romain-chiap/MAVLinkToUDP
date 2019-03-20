@@ -1,0 +1,239 @@
+package coriolis;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+
+import me.drton.jmavlib.mavlink.*;
+
+// MAVLink to UDP - Coriolis g Corporation
+// Bridge between PX4 MAVlink to UDP for FlightGear
+// Romain Chiappinelli - March 2019
+
+//-h
+//		Display help
+//-d
+//      Display debug messages during execution
+//-udp [<ip_address> <udp_port>]
+//		Specifies the ip address <ip_address> and the udp port <udp_port> for the udp connection to FlightGear.
+//		If not specified, the default IP address is 127.0.0.1 and the default UDP port is 5502.
+//-serial [<path> <baud_rate>]
+//		Specifies the serial port <path> and the baud rate <baud_rate> for the MAVLink connection.
+//		If not specified, the default port path is /dev/ttyACM0 and the default baud rate is 230400.
+//		The MAVLink supports any baud rate.
+//		The standard USB MAVLink path are:
+//   		- /dev/ttyACM0 on Linux;
+//   		- /dev/tty.usbmodem1 on Mac OS;
+//   		- COM15 on Windows.
+//-vehicle {<quad> or <vogi>}
+//		Specifies the vehicle setup, it can be either quad or vogi
+//		If not specified, the default vehicle is a quad
+
+public final class MAVLinkToUDP {
+
+	private static boolean DEBUG_MODE = false;
+	private static String serialPath = "/dev/ttyACM0";
+	private static int serialBaudRate = 230400;
+
+	private static ClientUDP clientUDP; // UDP port
+	private static String addressIP = "127.0.0.1"; // IP adress
+	private static int portUDP = 5502; // UDP port
+
+	public static BufferedReader in;
+	public static boolean loop = true;
+
+	public enum Vehicle {
+		QUAD, VOGI;
+	}
+
+	public static Vehicle vehicle = Vehicle.QUAD;
+
+	public static void main(String[] args) throws Exception {
+		int i = 0;
+		while (i < args.length) {
+			String arg = args[i++];
+			if (arg.equalsIgnoreCase("-h") || arg.equalsIgnoreCase("--help") || arg.equalsIgnoreCase("-help")) {
+				handleHelpFlag();
+				return;
+			} else if (arg.equalsIgnoreCase("-d")) {
+				DEBUG_MODE = true;
+			} else if (arg.equalsIgnoreCase("-udp")) {
+				String nextArg = args[i++];
+				if (nextArg.startsWith("-")) {
+					i--;
+					continue;
+				} else {
+					addressIP = nextArg;
+				}
+				nextArg = args[i++];
+				if (nextArg.startsWith("-")) {
+					i--;
+					continue;
+				} else {
+					portUDP = Integer.parseInt(nextArg);
+				}
+			} else if (arg.equalsIgnoreCase("-serial")) {
+				String nextArg = args[i++];
+				if (nextArg.startsWith("-")) {
+					i--;
+					continue;
+				} else {
+					serialPath = nextArg;
+				}
+				nextArg = args[i++];
+				if (nextArg.startsWith("-")) {
+					i--;
+					continue;
+				} else {
+					serialBaudRate = Integer.parseInt(nextArg);
+				}
+			} else if (arg.equalsIgnoreCase("-serial")) {
+				String nextArg = args[i++];
+				if (nextArg.startsWith("-")) {
+					i--;
+					continue;
+				} else {
+					serialPath = nextArg;
+				}
+				nextArg = args[i++];
+				if (nextArg.startsWith("-")) {
+					i--;
+					continue;
+				} else {
+					serialBaudRate = Integer.parseInt(nextArg);
+				}
+			} else if (arg.equalsIgnoreCase("-vehicle")) {
+				String nextArg = args[i++];
+				if (nextArg.startsWith("-")) {
+					i--;
+					continue;
+				} else if (nextArg.equalsIgnoreCase("quad")) {
+					vehicle = Vehicle.QUAD;
+				} else if (nextArg.equalsIgnoreCase("vogi")) {
+					vehicle = Vehicle.VOGI;
+				} else {
+					System.out.println("Unknown vehicle: " + nextArg);
+					System.out.println("    Use flag -h to display help.");
+					return;
+				}
+
+			} else {
+				System.out.println("Unknown flag: " + arg);
+				System.out.println("    Use flag -h to display help.");
+				return;
+			}
+
+		}
+
+		if (DEBUG_MODE) {
+			System.out.println("serialPath=" + serialPath + ", serialBaudRate=" + serialBaudRate + ", addressIP="
+					+ addressIP + ", portUDP=" + portUDP + ", vehicle=" + vehicle);
+		}
+
+		new MAVLinkToUDP(); // start MAVLinkToUDP
+	}
+
+	private static void handleHelpFlag() {
+		System.out.println("command-line options:\n");
+		System.out.println("-h");
+		System.out.println("     Display help");
+		System.out.println("-d");
+		System.out.println("     Display debug messages during execution.");
+		System.out.println("-udp [<ip_address> <udp_port>]");
+		System.out.println(
+				"     Specifies the ip address <ip_address> and the udp port <udp_port> for the udp connection to FlightGear.");
+		System.out.println(
+				"     If not specified, the default IP address is 127.0.0.1 and the default UDP port is 5502.");
+		System.out.println("-serial [<path> <baud_rate>]");
+		System.out.println(
+				"     Specifies the serial port <path> and the baud rate <baud_rate> for the MAVLink connection.");
+		System.out.println(
+				"     If not specified, the default port path is /dev/ttyACM0 and the default baud rate is 230400.");
+		System.out.println("     The MAVLink supports any baud rate.");
+		System.out.println("     The standard USB MAVLink path are:");
+		System.out.println("        - /dev/ttyACM0 on Linux;");
+		System.out.println("        - /dev/tty.usbmodem1 on Mac OS;");
+		System.out.println("        - COM15 on Windows.");
+		System.out.println("-vehicle {<quad> or <vogi>}");
+		System.out.println("     Specifies the vehicle setup, it can be either quad or vogi");
+		System.out.println("     If not specified, the default vehicle is a quad");
+
+	}
+
+	// constructor
+	public MAVLinkToUDP() throws Exception {
+		MAVLinkSchema schema = null;
+		try {
+			schema = new MAVLinkSchema("jMAVlib/common.xml");
+		} catch (Exception e) {
+			try {
+				schema = new MAVLinkSchema("common.xml");
+			}
+			catch {
+				
+			}
+			System.out.println("ERROR: Could not load Mavlink Schema: " + e.getLocalizedMessage());
+			return;
+		}
+
+		SerialMAVLinkPort serialPort = new SerialMAVLinkPort(schema);
+		serialPort.setup(serialPath, serialBaudRate, 8, 1, 0);
+		serialPort.setDebug(DEBUG_MODE);
+
+		try {
+			serialPort.open();
+		} catch (Exception e) {
+			System.out.println("ERROR: Failed to open MAV port: " + e.getLocalizedMessage());
+			return;
+		}
+
+		if (DEBUG_MODE)
+			System.out.println("\nopening UDP port");
+		clientUDP = new ClientUDP(addressIP, portUDP);
+
+		byte[] bufferUDP = new byte[408]; // buffer to send to FG UDP
+
+		// initialize the buffer reader in a thread to stop the program when ENTER is
+		// pressed
+		in = new BufferedReader(new InputStreamReader(System.in));
+		Thread t1 = new Thread(new avi());
+		t1.start();
+
+		System.out.println("Running: press ENTER to stop");
+		Thread.sleep(1000);
+
+		while (loop) {
+			MAVLinkMessage msg = serialPort.update("HIL_STATE_QUATERNION");
+			if (msg != null) {
+				FGVehicle quad = new FGVehicle();
+				quad.readQuad(msg);
+				quad.packFG(bufferUDP); // pack the FG variables into the bufferUDP
+				clientUDP.send(bufferUDP); // send the BufferUDP
+				if (DEBUG_MODE)
+					System.out.println(quad);
+			}
+			Thread.sleep(10);
+		}
+
+		serialPort.close();
+		if (DEBUG_MODE)
+			System.out.println("Serial Port closed");
+		clientUDP.close();
+		if (DEBUG_MODE)
+			System.out.println("UDP Port closed");
+	}
+
+	// new thread to close the program when user press any key
+	public static class avi implements Runnable {
+		public void run() {
+			while (true) {
+				try {
+					in.readLine();
+				} catch (Exception e) {
+				}
+
+				loop = false;
+				break;
+			}
+		}
+	}
+}
