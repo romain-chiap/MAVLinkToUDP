@@ -1,6 +1,7 @@
 # MAVLinkToUDP
 MAVLink to UDP bridge to display PX4 Simulation-In-Hardware (SIH) into FlightGear.
-Written in Java using [jMAVlib](https://github.com/PX4/jMAVlib) for the [MAVLink](https://mavlink.io/en/) interface.
+Written in Java using [jMAVlib](https://github.com/PX4/jMAVlib) for the [MAVLink](https://mavlink.io/en/) interface. A small how to guide for jMAVlib can be found in the [wiki](https://github.com/romain-chiap/MAVLinkToUDP/wiki/jMAVlib).
+
 
 ![Simulator in Hardware diagram](https://github.com/romain-chiap/PX4_SIH_QuadX/blob/master/Documentation/img/SIH_diagram.png)
 
